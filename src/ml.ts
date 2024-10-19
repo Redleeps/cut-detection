@@ -3,7 +3,7 @@ import {
   IMAGE_SIZE,
   PLAN_INDEX_BYTE_SIZE,
 } from "./constantes";
-import * as tf from "@tensorflow/tfjs-node";
+import * as tf from "@tensorflow/tfjs-node-gpu";
 import { askBoolean, chunkArray, joinBuffers, mean, random } from "./utils";
 import formatDuration from "format-duration";
 import { openDatasetSync, rawBufferToPng } from "./dataset";
@@ -309,6 +309,91 @@ export async function benchModel(
   console.log();
 }
 
+function pickImageSequenceF(
+  file: Buffer,
+  batch: number,
+  count: number,
+  offset: number,
+  set?: Set<string>,
+) {
+  const blockLength = IMAGE_BYTE_SIZE + PLAN_INDEX_BYTE_SIZE;
+  function fetchAtIndex(index: number) {
+    const cursor = (offset + index) * blockLength + 4;
+    const outputBuffer = file.subarray(cursor, cursor + PLAN_INDEX_BYTE_SIZE);
+    const inputBuffer = file.subarray(
+      cursor + PLAN_INDEX_BYTE_SIZE,
+      cursor + PLAN_INDEX_BYTE_SIZE + IMAGE_BYTE_SIZE,
+    );
+    return [inputBuffer, outputBuffer.readUInt32LE(0)] as const;
+  }
+
+  const xBuffers: Buffer[] = [];
+  let planIndex = -1;
+  let isSamePlan = true;
+
+  fistHalf: {
+    let randomOffset = Math.floor(random() * count);
+
+    const first = fetchAtIndex(randomOffset);
+    xBuffers.push(first[0]);
+    planIndex = first[1];
+
+    let second = fetchAtIndex(randomOffset + 1);
+    if (second[1] === planIndex) xBuffers.push(second[0]);
+    else xBuffers.unshift(fetchAtIndex(randomOffset - 1)[0]);
+
+    let third = fetchAtIndex(randomOffset + 2);
+    if (third[1] === planIndex) xBuffers.push(third[0]);
+    else xBuffers.unshift(fetchAtIndex(randomOffset - 2)[0]);
+    if (!(batch % 3)) {
+      let fourth = fetchAtIndex(randomOffset + 3);
+      if (fourth[1] === planIndex) xBuffers.push(fourth[0]);
+      else xBuffers.unshift(fetchAtIndex(randomOffset - 3)[0]);
+      if (!(batch % 4)) {
+        let fifth = fetchAtIndex(randomOffset + 4);
+        if (fifth[1] === planIndex) xBuffers.push(fifth[0]);
+        else xBuffers.unshift(fetchAtIndex(randomOffset - 4)[0]);
+        set?.add(`${planIndex}:${planIndex}`);
+      }
+    }
+  }
+
+  secondHalf: {
+    if (!(batch % 3) && !(batch % 4)) break secondHalf;
+    let randomOffset = Math.floor(random() * count);
+    let newPlanIndex = -1;
+    let tries = 100;
+    do {
+      let randomOffset = Math.floor(random() * count);
+      [, newPlanIndex] = fetchAtIndex(randomOffset);
+      tries--;
+    } while (
+      tries &&
+      (newPlanIndex === planIndex || set?.has(`${planIndex}:${newPlanIndex}`))
+    );
+    set?.add(`${planIndex}:${newPlanIndex}`);
+
+    const first = fetchAtIndex(randomOffset);
+    const push = batch % 5 ? "push" : "unshift";
+    if (!(batch % 3)) {
+      xBuffers[push](first[0]);
+      break secondHalf;
+    }
+
+    isSamePlan = batch % 5 ? planIndex === first[1] : false;
+
+    let second = fetchAtIndex(randomOffset + 1);
+    if (second[1] === first[1]) {
+      xBuffers[push](first[0]);
+      xBuffers[push](second[0]);
+    } else {
+      xBuffers[push](fetchAtIndex(randomOffset - 1)[0]);
+      xBuffers[push](first[0]);
+    }
+  }
+
+  return [xBuffers, isSamePlan, planIndex] as const;
+}
 function pickImageSequence(
   fileHandler: number,
   batch: number,
@@ -415,6 +500,16 @@ export function generateDatasetIterator({
   batchCount,
 }: IGenerateDatasetIteratorParams) {
   const engine = tf.engine();
+  const file = Buffer.alloc(
+    blockCount * (IMAGE_BYTE_SIZE + PLAN_INDEX_BYTE_SIZE) + 8,
+  );
+  readSync(
+    fileHandler,
+    file,
+    0,
+    blockCount * (IMAGE_BYTE_SIZE + PLAN_INDEX_BYTE_SIZE) + 8,
+    0,
+  );
   return function* () {
     let lastTensors: tf.Tensor[] = [];
     const set = new Set<string>();
@@ -427,8 +522,8 @@ export function generateDatasetIterator({
       const ys: (0 | 1)[] = [];
 
       for (let i = 0; i < batchSize; i++) {
-        const [buffers, isSamePlan] = pickImageSequence(
-          fileHandler,
+        const [buffers, isSamePlan] = pickImageSequenceF(
+          file,
           batch,
           blockCount,
           blockOffset,

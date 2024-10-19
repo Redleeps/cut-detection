@@ -3,7 +3,7 @@ import { rawBufferToPng, toRaw } from "./dataset";
 import { executeModel, executeModelWithTensors, reshape } from "./ml";
 import { askBoolean, joinBuffers } from "./utils";
 import path from "path";
-import * as tf from "@tensorflow/tfjs-node";
+import * as tf from "@tensorflow/tfjs-node-gpu";
 
 export async function runBase(
   directory: string,

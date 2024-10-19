@@ -23,6 +23,7 @@
     "@tensorflow/tfjs": "^4.21.0",
     "@tensorflow/tfjs-converter": "^4.21.0",
     "@tensorflow/tfjs-node": "^4.21.0",
+    "@tensorflow/tfjs-node-gpu": "^4.21.0",
     "bitset": "^5.1.1",
     "format-duration": "^3.0.2",
     "node-notifier": "^10.0.1",

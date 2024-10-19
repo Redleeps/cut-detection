@@ -1,4 +1,4 @@
-import * as tf from "@tensorflow/tfjs";
+import * as tf from "@tensorflow/tfjs-node-gpu";
 
 export class C3 extends tf.layers.Layer {
   filters: number;
