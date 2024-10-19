@@ -1,0 +1,35 @@
+{
+  "name": "scene-detection",
+  "version": "1.0.0",
+  "description": "",
+  "main": "cli.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon -i dist -i node_modules -i data -i dataset -e ts,json -x \"pnpm build && pnpm start\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@types/node-notifier": "^8.0.5",
+    "@types/yargs": "^17.0.33",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "@supercharge/promise-pool": "^3.2.0",
+    "@tensorflow/tfjs": "^4.21.0",
+    "@tensorflow/tfjs-converter": "^4.21.0",
+    "@tensorflow/tfjs-node": "^4.21.0",
+    "bitset": "^5.1.1",
+    "format-duration": "^3.0.2",
+    "node-notifier": "^10.0.1",
+    "sharp": "^0.33.5",
+    "tfjs-node-save": "^0.0.2",
+    "visualiser": "^1.2.2",
+    "why-is-node-running": "^3.2.0",
+    "yargs": "^17.7.2"
+  }
+}
